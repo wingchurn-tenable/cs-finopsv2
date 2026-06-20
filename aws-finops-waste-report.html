@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS FinOps Waste &amp; Cost Optimization Report</title>
+<style>
+  :root{
+    --bg:#1d252d;          /* Pantone 433C */
+    --panel:#262f39;
+    --panel2:#2f3a45;
+    --line:#3a4753;
+    --accent:#c5e700;      /* Pantone 395C */
+    --accent-dim:#9bb500;
+    --text:#ffffff;
+    --muted:#aab4bf;
+    --crit:#ff5b5b;
+    --high:#ff9f43;
+    --med:#ffd23f;
+    --low:#5bc0eb;
+    --good:#c5e700;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.55;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3{font-weight:700;line-height:1.2;margin:0 0 .4em}
+  h2{font-size:1.45rem;border-left:4px solid var(--accent);padding-left:.6rem;margin-top:0}
+  h3{font-size:1.05rem;color:var(--accent)}
+  code{background:#0e1318;padding:1px 6px;border-radius:4px;font-size:.85em;color:var(--accent)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px 80px}
+
+  /* Header */
+  header{
+    background:linear-gradient(135deg,#161d23,#1d252d 60%);
+    border-bottom:2px solid var(--accent);
+    padding:26px 22px 18px;position:relative;
+  }
+  .hdr-inner{max-width:1180px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .logo{width:44px;height:44px;border:3px solid var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent);font-size:1.3rem}
+  .brand h1{font-size:1.5rem;margin:0}
+  .brand .sub{color:var(--muted);font-size:.9rem}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+  .btn{
+    background:var(--accent);color:#1d252d;border:none;border-radius:8px;
+    padding:9px 16px;font-weight:700;font-size:.9rem;cursor:pointer;transition:.15s;
+  }
+  .btn:hover{background:#d4f718}
+  .btn.secondary{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+  .btn.secondary:hover{background:rgba(197,231,0,.12)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .status-line{margin-top:12px;font-size:.82rem;color:var(--muted);display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#777;margin-right:6px}
+  .dot.live{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .dot.err{background:var(--crit)}
+  .dot.demo{background:var(--med)}
+
+  /* Token bar */
+  .token-bar{
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;
+  }
+  .token-bar.hidden{display:none}
+  .field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:260px}
+  .field label{font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .field input{
+    background:#0e1318;border:1px solid var(--line);border-radius:7px;color:var(--text);
+    padding:9px 11px;font-size:.88rem;font-family:ui-monospace,Menlo,Consolas,monospace;
+  }
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .field .hint{font-size:.72rem;color:#7f8a95}
+
+  /* Layout with TOC */
+  .layout{display:grid;grid-template-columns:230px 1fr;gap:30px;margin-top:30px}
+  nav.toc{position:sticky;top:18px;align-self:start;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  nav.toc h4{margin:0 0 10px;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  nav.toc li{counter-increment:s;margin:2px 0}
+  nav.toc a{display:block;padding:7px 9px;border-radius:6px;color:var(--text);font-size:.86rem}
+  nav.toc a::before{content:counter(s)". ";color:var(--accent);font-weight:700}
+  nav.toc a:hover{background:var(--panel2);text-decoration:none}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static}}
+
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:26px;scroll-margin-top:18px}
+
+  /* KPI cards */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+  .kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center}
+  .kpi .num{font-size:1.85rem;font-weight:800;color:var(--accent);line-height:1}
+  .kpi .lbl{font-size:.76rem;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.04em}
+
+  /* Charts */
+  .charts{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:center}
+  @media(max-width:760px){.charts{grid-template-columns:1fr}}
+  .chart-card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .chart-card h3{margin-top:0}
+  canvas{max-width:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:.82rem}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.86rem}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;position:sticky}
+  tbody tr:hover{background:var(--panel2)}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:700}
+  .p-high{background:rgba(255,91,91,.18);color:#ff8585;border:1px solid #ff5b5b}
+  .p-med{background:rgba(255,210,63,.16);color:#ffd23f;border:1px solid #ffd23f}
+  .p-low{background:rgba(91,192,235,.16);color:#5bc0eb;border:1px solid #5bc0eb}
+  .safe{color:var(--good);font-weight:700}
+  .approve{color:var(--high);font-weight:700}
+  .tag{font-size:.72rem;color:var(--muted)}
+
+  .note{background:rgba(197,231,0,.07);border:1px solid var(--accent-dim);border-radius:8px;padding:12px 14px;font-size:.85rem;margin-top:14px}
+  .warn{background:rgba(255,159,67,.08);border:1px solid var(--high);border-radius:8px;padding:12px 14px;font-size:.85rem;margin-top:14px;color:#ffce9e}
+  .muted{color:var(--muted)}
+  ul.clean{margin:.4em 0;padding-left:1.2em}
+  ul.clean li{margin:.25em 0}
+
+  /* Remediation steps */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px}
+  @media(max-width:760px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--panel2);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:10px;padding:16px}
+  .step .n{font-size:.74rem;color:var(--accent);font-weight:800;letter-spacing:.08em}
+  .step h3{margin:.2em 0 .4em;color:var(--text)}
+
+  .savings-box{background:linear-gradient(135deg,#222c1a,#1d252d);border:1px solid var(--accent);border-radius:12px;padding:20px;margin-top:18px;text-align:center}
+  .savings-box .big{font-size:2.6rem;font-weight:800;color:var(--accent);line-height:1}
+  .savings-box .lbl{color:var(--muted);font-size:.85rem;margin-top:6px}
+  .qty-input{width:64px;background:#0e1318;border:1px solid var(--line);color:var(--accent);border-radius:5px;padding:4px 6px;text-align:right;font-variant-numeric:tabular-nums}
+  .qty-input:focus{outline:none;border-color:var(--accent)}
+
+  /* Inventory + drill-down */
+  .inv-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:22px}
+  .inv-head h3{margin:0}
+  .filter-chip{display:none;align-items:center;gap:8px;background:rgba(197,231,0,.12);border:1px solid var(--accent);border-radius:20px;padding:4px 6px 4px 12px;font-size:.8rem}
+  .filter-chip.on{display:inline-flex}
+  .filter-chip button{background:var(--accent);color:#1d252d;border:none;border-radius:50%;width:18px;height:18px;font-weight:800;cursor:pointer;line-height:1}
+  .inv-search{background:#0e1318;border:1px solid var(--line);border-radius:7px;color:var(--text);padding:7px 10px;font-size:.84rem;min-width:200px}
+  .inv-search:focus{outline:none;border-color:var(--accent)}
+  .inv-wrap{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:10px}
+  table.inv{margin-top:0}
+  table.inv th{background:var(--panel);position:sticky;top:0;z-index:1}
+  table.inv tbody tr{cursor:pointer}
+  table.inv tbody tr:hover{background:var(--panel2)}
+  .sev-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .sev-Critical{background:var(--crit)} .sev-High{background:var(--high)}
+  .sev-Medium{background:var(--med)} .sev-Low{background:var(--low)}
+  .clickable{cursor:pointer}
+  .waste-row{cursor:pointer}
+  .waste-row:hover{background:var(--panel2)}
+  .waste-row td:first-child::after{content:" \\1F50D";font-size:.8em;opacity:.45}
+  canvas#bars{cursor:pointer}
+  .hint-row{font-size:.78rem;color:var(--muted);margin-top:8px}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(8,11,14,.74);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
+  .modal-overlay.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--accent);border-radius:14px;max-width:680px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .modal-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
+  .modal-hd h3{margin:0;color:var(--text);font-size:1.15rem}
+  .modal-hd .x{background:none;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;line-height:1}
+  .modal-bd{padding:18px 22px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:.86rem;margin-bottom:14px}
+  .kv dt{color:var(--muted)}
+  .kv dd{margin:0;word-break:break-all}
+  .modal h4{color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px}
+  .steps-pre{white-space:pre-wrap;background:#0e1318;border:1px solid var(--line);border-radius:8px;padding:12px;font-size:.82rem;line-height:1.5;max-height:220px;overflow:auto}
+  .tag-list{display:flex;flex-wrap:wrap;gap:6px}
+  .tag-chip{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:.76rem}
+  .modal-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+
+  footer{color:#6f7a85;font-size:.78rem;text-align:center;margin-top:30px}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-inner">
+    <div class="brand">
+      <div class="logo">$</div>
+      <div>
+        <h1>AWS FinOps — Waste &amp; Cost Optimization Report</h1>
+        <div class="sub">Cost Optimization Pillar · AWS Well-Architected · Live data via Tenable Cloud Security GraphQL</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn" id="btnRefresh">↻ Refresh Data</button>
+      <button class="btn secondary" id="btnSwitch">⇄ Switch Tenant</button>
+      <span class="status-line">
+        <span><span class="dot" id="statusDot"></span><span id="statusText">No token — using demo data</span></span>
+        <span>Last polled: <strong id="lastPolled">—</strong></span>
+        <span id="recordCount" class="muted"></span>
+      </span>
+    </div>
+
+    <div class="token-bar" id="tokenBar">
+      <div class="field">
+        <label for="apiToken">Tenable API Bearer Token (tenant credentials)</label>
+        <input id="apiToken" type="password" autocomplete="off" spellcheck="false"
+               placeholder="Paste your bearer token (with or without the leading 'Bearer ')">
+        <span class="hint">Sent as <code>Authorization: Bearer &lt;token&gt;</code>. Stored only in this browser tab.</span>
+      </div>
+      <div class="field">
+        <label for="proxyUrl">Proxy URL (optional — avoids browser CORS)</label>
+        <input id="proxyUrl" type="text" autocomplete="off" spellcheck="false"
+               placeholder="https://your-worker.workers.dev/   (leave blank to call Tenable directly)">
+        <span class="hint">Run the included <code>proxy_server.py</code> (Python, no installs) and paste its URL here, e.g. <code>http://localhost:8787/</code>.</span>
+      </div>
+      <div class="field" style="flex:0 0 auto;min-width:0">
+        <label>&nbsp;</label>
+        <button class="btn" id="btnConnect">Connect &amp; Load</button>
+      </div>
+      <div class="field" style="flex:0 0 auto;min-width:0">
+        <label>&nbsp;</label>
+        <button class="btn secondary" id="btnDemo">Use Demo Data</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<div class="layout">
+
+  <nav class="toc">
+    <h4>Report Contents</h4>
+    <ol>
+      <li><a href="#summary">Executive Summary</a></li>
+      <li><a href="#live">Live Environment Data</a></li>
+      <li><a href="#waste">Waste Identification</a></li>
+      <li><a href="#matrix">Priority Matrix</a></li>
+      <li><a href="#cost">Cost Implications</a></li>
+      <li><a href="#remediation">Remediation Plan</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- 1. SUMMARY -->
+  <section id="summary">
+    <h2>1 · Executive Summary</h2>
+    <p>This report applies the <strong>AWS Well-Architected Cost Optimization Pillar</strong> to surface hidden waste in your cloud footprint. It combines a live posture pull from <strong>Tenable Cloud Security</strong> (orphaned, public, and unmanaged resources surface as findings) with a FinOps remediation framework: identify waste, prioritize by effort-vs-savings, quantify the dollar impact at 2026 AWS rates, and roll it out through a non-disruptive <em>Detect → Notify → Terminate</em> workflow.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="num" id="kpiTotal">—</div><div class="lbl">Open Findings</div></div>
+      <div class="kpi"><div class="num" id="kpiAws">—</div><div class="lbl">AWS Findings</div></div>
+      <div class="kpi"><div class="num" id="kpiCrit">—</div><div class="lbl">Critical</div></div>
+      <div class="kpi"><div class="num" id="kpiSavings">—</div><div class="lbl">Est. Annual Savings</div></div>
+    </div>
+    <div class="note">Live tiles populate from the <code>Findings</code> GraphQL query. Cost figures derive from the editable assumptions in <a href="#cost">Section 5</a>. Tenable identifies the <em>resources</em>; the dollar model is FinOps guidance you tune to your account.</div>
+  </section>
+
+  <!-- 2. LIVE DATA -->
+  <section id="live">
+    <h2>2 · Live Environment Data</h2>
+    <p class="muted" id="liveSubtitle">Pulled from <code>https://app.tenable.com/api/graph</code>. Findings severity and the most violated policies are aggregated client-side.</p>
+    <div class="charts">
+      <div class="chart-card">
+        <h3>Findings by Severity</h3>
+        <canvas id="donut" width="280" height="280" role="img" aria-label="Donut chart of findings by severity"></canvas>
+        <div class="legend" id="donutLegend"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Top Policy Violations (AWS, open)</h3>
+        <canvas id="bars" width="640" height="320" role="img" aria-label="Bar chart of top policy violations"></canvas>
+      </div>
+    </div>
+    <div class="warn" id="corsNote" style="display:none"></div>
+
+    <div class="inv-head">
+      <h3>Resource Inventory <span class="tag" id="invCount"></span></h3>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span class="filter-chip" id="filterChip"><span id="filterChipText"></span><button id="filterClear" title="Clear filter">×</button></span>
+        <input class="inv-search" id="invSearch" type="text" placeholder="Search name / region / account / policy…">
+      </div>
+    </div>
+    <p class="hint-row">Click the donut legend or a policy bar to filter. Click any row for full resource detail and remediation actions.</p>
+    <div class="inv-wrap">
+      <table class="inv">
+        <thead><tr>
+          <th>Resource</th><th>Type</th><th>Region</th><th>Account</th><th>Severity</th><th>Policy</th>
+        </tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3. WASTE -->
+  <section id="waste">
+    <h2>3 · Waste Identification — Orphaned &amp; Unused Resources</h2>
+    <p>Each resource type below includes the <strong>technical criteria</strong> that should flag it as waste. Thresholds are conservative defaults; tune them to your workloads (batch and DR resources legitimately idle).</p>
+    <table>
+      <thead><tr><th>Resource</th><th>Type</th><th>Flag When… (technical criteria)</th><th>Why it's waste</th></tr></thead>
+      <tbody>
+        <tr class="waste-row" data-match="ebs,volume" title="Click to view matching live resources"><td><strong>Unattached EBS Volumes</strong></td><td>Orphan</td><td><code>state = available</code> (no <code>attachment</code>) for &gt; 7 days</td><td>Billed per GB-month whether attached or not.</td></tr>
+        <tr class="waste-row" data-match="snapshot,ebs" title="Click to view matching live resources"><td><strong>Orphaned EBS Snapshots</strong></td><td>Orphan</td><td>Source volume/AMI deleted, OR age &gt; 90 days with no restore</td><td>Snapshot sprawl accrues silently per GB-month.</td></tr>
+        <tr class="waste-row" data-match="elasticip,eip,address" title="Click to view matching live resources"><td><strong>Unassociated Elastic IPs</strong></td><td>Orphan</td><td><code>AssociationId</code> empty (not attached to running instance/ENI)</td><td>All public IPv4 now billed hourly even when idle.</td></tr>
+        <tr class="waste-row" data-match="nat" title="Click to view matching live resources"><td><strong>Idle NAT Gateways</strong></td><td>Unused</td><td><code>BytesOutToDestination</code> ≈ 0 over 14 days</td><td>~$33/mo fixed + per-GB even at zero traffic.</td></tr>
+        <tr class="waste-row" data-match="ec2,instance" title="Click to view matching live resources"><td><strong>Idle EC2 Instances</strong></td><td>Unused</td><td>Avg <code>CPUUtilization</code> &lt; 2% AND <code>NetworkIn/Out</code> &lt; 5 MB/day for 14 days</td><td>Paying for compute doing no work.</td></tr>
+        <tr class="waste-row" data-match="ec2,instance,volume" title="Click to view matching live resources"><td><strong>Stopped EC2 (long-term)</strong></td><td>Unnecessary</td><td><code>state = stopped</code> &gt; 30 days (attached EBS still billed)</td><td>Compute is free but root/data volumes are not.</td></tr>
+        <tr class="waste-row" data-match="rds,aurora,database,db" title="Click to view matching live resources"><td><strong>Idle RDS / Aurora</strong></td><td>Unused</td><td><code>DatabaseConnections</code> = 0 for 14 days; low CPU</td><td>Instance + storage + backups bill 24×7.</td></tr>
+        <tr class="waste-row" data-match="loadbalancer,elb,alb,nlb" title="Click to view matching live resources"><td><strong>Idle Load Balancers</strong></td><td>Unused</td><td>ALB/NLB <code>RequestCount</code>/<code>ActiveFlowCount</code> ≈ 0 for 14 days</td><td>Hourly + LCU charges with no traffic.</td></tr>
+        <tr class="waste-row" data-match="networkinterface,eni" title="Click to view matching live resources"><td><strong>Orphaned ENIs</strong></td><td>Orphan</td><td><code>status = available</code>, not attached</td><td>Free, but pins Elastic IPs/subnet IPs and signals dead infra.</td></tr>
+        <tr class="waste-row" data-match="image,ami,snapshot" title="Click to view matching live resources"><td><strong>Old / Deregistered AMIs</strong></td><td>Unnecessary</td><td>Not used by any launch template/ASG; age &gt; 180 days</td><td>Backing snapshots keep billing per GB-month.</td></tr>
+        <tr class="waste-row" data-match="volume,ebs" title="Click to view matching live resources"><td><strong>Unused Provisioned IOPS (io1/io2)</strong></td><td>Unnecessary</td><td>Provisioned IOPS ≫ observed; low utilization</td><td>Premium IOPS billed regardless of use.</td></tr>
+        <tr class="waste-row" data-match="elasticache,redshift,cache" title="Click to view matching live resources"><td><strong>Idle Elasticache / Redshift</strong></td><td>Unused</td><td>Cluster connections/queries ≈ 0 for 14 days</td><td>Always-on node-hours.</td></tr>
+        <tr class="waste-row" data-match="s3,bucket" title="Click to view matching live resources"><td><strong>S3 — no lifecycle / incomplete MPU</strong></td><td>Unnecessary</td><td>No lifecycle policy; incomplete multipart uploads &gt; 7 days; cold data in Standard</td><td>Storing cold/abandoned data at hot-tier rates.</td></tr>
+        <tr class="waste-row" data-match="__none__" title="Rate optimization — no single resource to list"><td><strong>Unused Reserved Capacity / SP gap</strong></td><td>Rate</td><td>On-demand spend with &lt; 70% commitment coverage on steady workloads</td><td>Missing 30–60% rate discounts.</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><strong>Mapping to Tenable:</strong> resources flagged as <em>public</em>, <em>unmanaged (not in IaC)</em>, <em>unused access keys</em>, or with <em>no recent activity</em> in the live findings above are strong waste candidates — security posture and cost waste overlap heavily on abandoned infrastructure.</div>
+  </section>
+
+  <!-- 4. MATRIX -->
+  <section id="matrix">
+    <h2>4 · Priority Matrix — Effort vs. Savings</h2>
+    <p>Prioritize by <strong>ease of deletion</strong> against <strong>potential savings</strong>. "Safe" items are reversible or non-impacting; "Approval" items can break workloads and need a stakeholder sign-off.</p>
+    <table>
+      <thead><tr><th>Priority</th><th>Resource action</th><th>Ease</th><th>Savings</th><th>Disposition</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill p-high">HIGH</span></td><td>Delete unattached EBS volumes (snapshot first)</td><td>Easy</td><td>High</td><td class="safe">Safe — snapshot = instant rollback</td></tr>
+        <tr><td><span class="pill p-high">HIGH</span></td><td>Release unassociated Elastic IPs</td><td>Easy</td><td>Medium</td><td class="safe">Safe</td></tr>
+        <tr><td><span class="pill p-high">HIGH</span></td><td>Delete idle NAT Gateways (verify route tables)</td><td>Easy</td><td>High</td><td class="approve">Approval — networking impact</td></tr>
+        <tr><td><span class="pill p-high">HIGH</span></td><td>Prune orphaned/aged snapshots &amp; AMIs</td><td>Easy</td><td>High</td><td class="safe">Safe with retention policy</td></tr>
+        <tr><td><span class="pill p-med">MED</span></td><td>Stop/rightsize idle EC2 instances</td><td>Medium</td><td>High</td><td class="approve">Approval — owner confirm</td></tr>
+        <tr><td><span class="pill p-med">MED</span></td><td>Delete idle load balancers</td><td>Medium</td><td>Medium</td><td class="approve">Approval — check DNS/targets</td></tr>
+        <tr><td><span class="pill p-med">MED</span></td><td>Stop/downsize idle RDS (final snapshot)</td><td>Medium</td><td>High</td><td class="approve">Approval — data owner</td></tr>
+        <tr><td><span class="pill p-med">MED</span></td><td>S3 lifecycle + abort incomplete MPU</td><td>Medium</td><td>Medium</td><td class="safe">Safe — policy-driven</td></tr>
+        <tr><td><span class="pill p-low">LOW</span></td><td>Clean orphaned ENIs</td><td>Easy</td><td>Low</td><td class="safe">Safe</td></tr>
+        <tr><td><span class="pill p-low">LOW</span></td><td>Convert gp2→gp3, tune provisioned IOPS</td><td>Medium</td><td>Low/Med</td><td class="safe">Safe — live migration</td></tr>
+        <tr><td><span class="pill p-low">LOW</span></td><td>Buy Savings Plans / RIs for steady load</td><td>Hard</td><td>High</td><td class="approve">Approval — finance commit</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><strong>Rule of thumb:</strong> "Safe to delete" = unattached storage, released IPs, snapshots with a retention copy, and policy-driven lifecycle changes. "Requires approval" = anything attached to a running workload, networking path, database, or a financial commitment.</div>
+  </section>
+
+  <!-- 5. COST -->
+  <section id="cost">
+    <h2>5 · Cost Implications (2026 AWS rates, us-east-1)</h2>
+    <p>Edit the <strong>Qty</strong> fields to match your environment — totals and the annual savings figure recompute live. Per-unit rates reflect standard 2026 on-demand pricing; your effective rate may be lower under commitments.</p>
+    <table id="costTable">
+      <thead><tr>
+        <th>Resource type</th><th class="num">Unit rate</th><th class="num">Qty</th>
+        <th class="num">Monthly</th><th class="num">Yearly</th>
+      </tr></thead>
+      <tbody><!-- filled by JS --></tbody>
+      <tfoot><tr>
+        <th>Total potential savings</th><th></th><th></th>
+        <th class="num" id="totMonthly">—</th><th class="num" id="totYearly">—</th>
+      </tr></tfoot>
+    </table>
+    <div class="savings-box">
+      <div class="big" id="savingsBig">—</div>
+      <div class="lbl">estimated annual savings from eliminating identified waste</div>
+    </div>
+    <p class="muted" style="margin-top:14px;font-size:.8rem">Reference rates: unattached EBS gp3 $0.08/GB-mo · snapshots $0.05/GB-mo · idle public IPv4 ~$3.65/mo · NAT Gateway ~$32.85/mo fixed · idle m5.large ~$70/mo · idle db.t3.medium ~$50/mo · idle ALB ~$18/mo. Always confirm against the AWS Pricing Calculator for your region.</p>
+  </section>
+
+  <!-- 6. REMEDIATION -->
+  <section id="remediation">
+    <h2>6 · Remediation Plan — Detect → Notify → Terminate</h2>
+    <p>A non-disruptive workflow that gives engineering teams a window to object before anything is deleted.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="n">STEP 1</div><h3>Detect</h3>
+        <ul class="clean">
+          <li>Run the criteria in §3 on a schedule (Tenable findings + AWS Config / Cost Explorer / CloudWatch).</li>
+          <li>Auto-tag candidates <code>finops:review=YYYY-MM-DD</code>.</li>
+          <li>Exclude DR, batch, and tag <code>finops:keep=true</code> resources.</li>
+        </ul>
+      </div>
+      <div class="step">
+        <div class="n">STEP 2</div><h3>Notify</h3>
+        <ul class="clean">
+          <li>Route each candidate to its <strong>owner tag</strong> via Slack/Jira/email.</li>
+          <li>Give a 7–14 day grace window to reclaim or justify.</li>
+          <li>Snapshot-then-stop reversible items; keep an audit trail.</li>
+        </ul>
+      </div>
+      <div class="step">
+        <div class="n">STEP 3</div><h3>Terminate</h3>
+        <ul class="clean">
+          <li>Auto-delete only "Safe" items after grace + snapshot.</li>
+          <li>"Approval" items require ticket sign-off before deletion.</li>
+          <li>Record realized savings; feed back into §5 assumptions.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="savings-box">
+      <div class="big" id="savingsBig2">—</div>
+      <div class="lbl">total projected annual savings · <span id="monthlyInline">—</span>/month</div>
+    </div>
+    <div class="note">Start with the <strong>HIGH-priority / Safe</strong> quadrant (unattached EBS, Elastic IPs, orphaned snapshots) — typically 60–80% of quick-win savings with near-zero risk.</div>
+  </section>
+
+  <footer>
+    Generated <span id="genDate"></span> · Single-file portable report · Zero external dependencies · Data source: Tenable Cloud Security GraphQL API.<br>
+    Cost figures are planning estimates, not a bill. Confirm against the AWS Pricing Calculator before acting.
+  </footer>
+
+  </main>
+</div>
+</div>
+
+<!-- Resource detail modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-hd">
+      <h3 id="mTitle">Resource detail</h3>
+      <button class="x" id="mClose" aria-label="Close">×</button>
+    </div>
+    <div class="modal-bd" id="mBody"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+  var ENDPOINT = "https://app.tenable.com/api/graph";
+
+  /* ---------- State ---------- */
+  var state = { token:"", proxy:"", mode:"demo", lastData:null, findings:[], filter:null };
+  var barGeom = [];   // hit-test geometry for policy bars
+
+  /* ---------- Cost model (2026 rates, editable qty) ---------- */
+  var COST_ROWS = [
+    {name:"Unattached EBS volumes (gp3)", unit:0.08, unitLabel:"$/GB-mo", qty:2000, qtyLabel:"GB"},
+    {name:"Orphaned EBS snapshots",       unit:0.05, unitLabel:"$/GB-mo", qty:3000, qtyLabel:"GB"},
+    {name:"Unassociated Elastic IPs",     unit:3.65, unitLabel:"$/mo ea", qty:25,   qtyLabel:"IPs"},
+    {name:"Idle NAT Gateways",            unit:32.85,unitLabel:"$/mo ea", qty:4,    qtyLabel:"GWs"},
+    {name:"Idle EC2 (m5.large equiv)",    unit:70,   unitLabel:"$/mo ea", qty:12,   qtyLabel:"inst"},
+    {name:"Stopped EC2 root/data EBS",    unit:8,    unitLabel:"$/mo ea", qty:20,   qtyLabel:"vols"},
+    {name:"Idle RDS (db.t3.medium)",      unit:50,   unitLabel:"$/mo ea", qty:5,    qtyLabel:"db"},
+    {name:"Idle load balancers (ALB)",    unit:18,   unitLabel:"$/mo ea", qty:6,    qtyLabel:"LBs"},
+    {name:"Old / deregistered AMIs",      unit:0.05, unitLabel:"$/GB-mo", qty:1500, qtyLabel:"GB"},
+    {name:"S3 cold data in Standard tier",unit:0.0125,unitLabel:"$/GB-mo (savings vs IA)",qty:8000,qtyLabel:"GB"}
+  ];
+
+  /* ---------- Demo dataset ---------- */
+  function demoRow(sev,type,name,region,acct,arn,pol,steps){
+    return {findingId:"demo-"+Math.random().toString(36).slice(2,9),severity:sev,status:"Open",
+      account:acct,accountId:"123456789012",link:"https://app.tenable.com/customer/Risks/Cloud/Open",
+      policyName:pol,policyCategory:"Demo",policyDesc:"Demo finding for offline preview.",steps:steps||"1. Review the resource owner.\n2. Snapshot if stateful.\n3. Delete/right-size after grace window.",
+      rTypeRaw:type,rType:friendlyType(type),rName:name,region:region,arn:arn,created:"2025-03-11T08:00:00.000Z",
+      tags:[{Key:"env",Value:acct.indexOf("Prod")>=0?"prod":"dev"},{Key:"owner",Value:"team-platform"}]};
+  }
+  var DEMO = {
+    severity:{Critical:196, High:3309, Medium:24492, Low:15894},
+    awsTotal:5712,
+    findings:[
+      demoRow("Critical","AwsEc2Instance","maliciousEC2","us-east-2","Org2Account4","arn:aws:ec2:us-east-2:111:instance/i-037d2038be1","Public Critical VMs"),
+      demoRow("Critical","AwsS3Bucket","prod-backups-public","us-east-1","Org2Account1","arn:aws:s3:::prod-backups-public","Public S3 Bucket"),
+      demoRow("Critical","AwsIamRole","admin-legacy-role","global","Org2Account2","arn:aws:iam::222:role/admin-legacy-role","Overprivileged IAM Role"),
+      demoRow("High","AwsEc2Instance","tf-acme-prod-dbapp","us-west-2","Org2Account2","arn:aws:ec2:us-west-2:222:instance/i-0731e35acd2","VM operating system at/near End-of-Life"),
+      demoRow("High","AwsEbsVolume","orphan-vol-analytics","us-east-1","Org2Account1","arn:aws:ec2:us-east-1:111:volume/vol-0a1b2c3d","Unattached EBS Volume"),
+      demoRow("High","AwsElasticIp","eip-unused-01","us-east-1","Org2Account1","arn:aws:ec2:us-east-1:111:eip/eipalloc-09f","Unassociated Elastic IP"),
+      demoRow("High","AwsNatGateway","nat-idle-vpc3","eu-west-1","Org2Account3","arn:aws:ec2:eu-west-1:333:natgateway/nat-0bb","Idle NAT Gateway"),
+      demoRow("High","AwsRdsInstance","reporting-db-old","us-east-1","Org2Account1","arn:aws:rds:us-east-1:111:db:reporting-db-old","Idle RDS Instance"),
+      demoRow("High","AwsIamUser","svc-deploy","global","Org2Account2","arn:aws:iam::222:user/svc-deploy","IAM User unused access keys"),
+      demoRow("Medium","AwsElbLoadBalancer","alb-stage-unused","us-east-2","Org2Account4","arn:aws:elasticloadbalancing:us-east-2:444:loadbalancer/app/alb-stage","Idle Load Balancer"),
+      demoRow("Medium","AwsEc2NetworkInterface","eni-detached-77","us-west-2","Org2Account2","arn:aws:ec2:us-west-2:222:network-interface/eni-077","Orphaned ENI"),
+      demoRow("Medium","AwsEbsSnapshot","snap-ami-2023","us-east-1","Org2Account1","arn:aws:ec2:us-east-1:111:snapshot/snap-0c9","Orphaned EBS Snapshot"),
+      demoRow("Medium","AwsS3Bucket","logs-no-lifecycle","ap-southeast-1","Org2Account5","arn:aws:s3:::logs-no-lifecycle","S3 bucket without lifecycle policy"),
+      demoRow("Low","AwsEc2Image","ami-base-2022","us-east-1","Org2Account1","arn:aws:ec2:us-east-1:111:image/ami-0base22","Old / deregistered AMI"),
+      demoRow("Low","AwsElastiCacheCluster","cache-idle-01","us-east-1","Org2Account1","arn:aws:elasticache:us-east-1:111:cluster:cache-idle-01","Idle Elasticache cluster")
+    ]
+  };
+
+  /* ---------- DOM helpers ---------- */
+  function $(id){return document.getElementById(id);}
+  function fmt(n){return n==null?"—":Number(n).toLocaleString();}
+  function money(n){
+    if(n==null) return "—";
+    return "$"+Number(Math.round(n)).toLocaleString();
+  }
+
+  /* ---------- Auth header builder ---------- */
+  function buildHeaders(token){
+    var h = {"Content-Type":"application/json","Accept":"application/json"};
+    var t = (token||"").trim();
+    if(!t) return h;
+    // Strip a leading "Bearer " if the user pasted it, then send as Bearer token.
+    t = t.replace(/^Bearer\s+/i,"");
+    h["Authorization"] = "Bearer "+t;
+    return h;
+  }
+
+  /* ---------- GraphQL ---------- */
+  function gql(query){
+    var target = state.proxy ? state.proxy : ENDPOINT;
+    return fetch(target,{
+      method:"POST",
+      headers:buildHeaders(state.token),
+      body:JSON.stringify({query:query})
+    }).then(function(r){
+      if(!r.ok) throw new Error("HTTP "+r.status+" "+r.statusText);
+      return r.json();
+    }).then(function(j){
+      if(j.errors) throw new Error(j.errors.map(function(e){return e.message;}).join(" | "));
+      return j.data;
+    });
+  }
+
+  var Q_SEVERITY =
+    '{ Critical: Findings(first:1, filter:{Severities:[Critical], Statuses:[Open]}){ totalCount }'+
+    '  High: Findings(first:1, filter:{Severities:[High], Statuses:[Open]}){ totalCount }'+
+    '  Medium: Findings(first:1, filter:{Severities:[Medium], Statuses:[Open]}){ totalCount }'+
+    '  Low: Findings(first:1, filter:{Severities:[Low], Statuses:[Open]}){ totalCount }'+
+    '  AWS: Findings(first:1, filter:{Providers:[AWS], Statuses:[Open]}){ totalCount } }';
+
+  var Q_DETAIL =
+    '{ Findings(first:500, filter:{Providers:[AWS], Statuses:[Open]}){ nodes {'+
+    '   Id Severity Status AccountName AccountId Link'+
+    '   Policy { Name Category Description }'+
+    '   Remediation { __typename ... on CommonFindingRemediation { Console { Steps } } }'+
+    '   Resources { __typename Name Region Id CreationTime Tags { Key Value } }'+
+    ' } } }';
+
+  /* Turn raw GraphQL nodes into one row per resource */
+  function normalize(nodes){
+    var rows=[];
+    (nodes||[]).forEach(function(n){
+      var pol = n.Policy||{};
+      var steps = n.Remediation && n.Remediation.Console ? n.Remediation.Console.Steps : null;
+      var base = {
+        findingId:n.Id, severity:n.Severity, status:n.Status,
+        account:n.AccountName, accountId:n.AccountId, link:n.Link,
+        policyName:pol.Name||"—", policyCategory:pol.Category||"—", policyDesc:pol.Description||"", steps:steps
+      };
+      var rs = n.Resources && n.Resources.length ? n.Resources : [null];
+      rs.forEach(function(r){
+        var row = Object.assign({}, base);
+        if(r){
+          row.rTypeRaw = r.__typename||""; row.rType = friendlyType(r.__typename);
+          row.rName = r.Name||"—"; row.region = r.Region||"—"; row.arn = r.Id||"";
+          row.created = r.CreationTime||null; row.tags = r.Tags||[];
+        } else {
+          row.rTypeRaw=""; row.rType="—"; row.rName="(no resource)"; row.region="—"; row.arn=""; row.created=null; row.tags=[];
+        }
+        rows.push(row);
+      });
+    });
+    return rows;
+  }
+  function friendlyType(t){
+    if(!t) return "—";
+    var s = t.replace(/^Aws/,"");
+    [["Ec2","EC2"],["Ebs","EBS"],["S3","S3"],["Iam","IAM"],["Rds","RDS"],["Kms","KMS"],
+     ["Ecr","ECR"],["Eks","EKS"],["Vpc","VPC"],["Elb","ELB"],["Nat","NAT"],["Eip","EIP"],
+     ["Sns","SNS"],["Sqs","SQS"],["Ip","IP"]]
+      .forEach(function(p){s=s.replace(new RegExp(p[0],"g")," "+p[1]+" ");});
+    s = s.replace(/([a-z])([A-Z])/g,"$1 $2").replace(/\s+/g," ").trim();
+    return s;
+  }
+
+  function fetchLive(){
+    setStatus("loading");
+    return Promise.all([gql(Q_SEVERITY), gql(Q_DETAIL)]).then(function(res){
+      var s = res[0], p = res[1];
+      var rows = normalize(p.Findings.nodes);
+      var data = {
+        severity:{Critical:s.Critical.totalCount, High:s.High.totalCount, Medium:s.Medium.totalCount, Low:s.Low.totalCount},
+        awsTotal:s.AWS.totalCount,
+        findings:rows
+      };
+      state.lastData = data; state.mode="live";
+      render(data); setStatus("live");
+      $("recordCount").textContent = "Sampled "+fmt(rows.length)+" AWS resources for inventory & policy ranking";
+      $("corsNote").style.display="none";
+    }).catch(function(err){
+      setStatus("err", err.message);
+      // graceful fallback to demo so the report is never blank
+      render(DEMO); state.mode="demo";
+      $("corsNote").style.display="block";
+      $("corsNote").innerHTML = "<strong>Live fetch failed:</strong> "+escapeHtml(err.message)+
+        ".<br>If this is a CORS/browser restriction, host this file behind a small same-origin proxy to <code>"+ENDPOINT+
+        "</code>, or run it from the Tenable app origin. Showing demo data meanwhile.";
+    });
+  }
+
+  function escapeHtml(s){return String(s).replace(/[&<>\"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+
+  /* ---------- Status ---------- */
+  function setStatus(kind, msg){
+    var dot=$("statusDot"), txt=$("statusText");
+    dot.className="dot";
+    if(kind==="loading"){dot.classList.add("live");txt.innerHTML='<span class="spin"></span> Loading…';}
+    else if(kind==="live"){dot.classList.add("live");txt.textContent="Connected — live tenant data";}
+    else if(kind==="demo"){dot.classList.add("demo");txt.textContent="Demo data (no token)";}
+    else if(kind==="err"){dot.classList.add("err");txt.textContent="Error: "+(msg||"fetch failed");}
+    stampTime();
+  }
+  function stampTime(){
+    var d=new Date();
+    $("lastPolled").textContent = d.toLocaleString();
+  }
+
+  /* ---------- Render ---------- */
+  function render(d){
+    var sev=d.severity, total=sev.Critical+sev.High+sev.Medium+sev.Low;
+    $("kpiTotal").textContent=fmt(total);
+    $("kpiAws").textContent=fmt(d.awsTotal);
+    $("kpiCrit").textContent=fmt(sev.Critical);
+    state.findings = d.findings || [];
+    drawDonut(sev);
+    drawBars(topPolicies(state.findings));
+    applyFilterAndRender();
+  }
+  function topPolicies(rows){
+    var c={};
+    rows.forEach(function(r){c[r.policyName]=(c[r.policyName]||0)+1;});
+    return Object.keys(c).map(function(k){return {name:k,count:c[k]};})
+      .sort(function(a,b){return b.count-a.count;}).slice(0,10);
+  }
+
+  /* ---------- Donut chart (Canvas) ---------- */
+  function drawDonut(sev){
+    var cv=$("donut"), ctx=cv.getContext("2d");
+    var W=cv.width, H=cv.height, cx=W/2, cy=H/2, R=110, r=64;
+    ctx.clearRect(0,0,W,H);
+    var data=[
+      {k:"Critical",v:sev.Critical,c:getCss("--crit")},
+      {k:"High",v:sev.High,c:getCss("--high")},
+      {k:"Medium",v:sev.Medium,c:getCss("--med")},
+      {k:"Low",v:sev.Low,c:getCss("--low")}
+    ];
+    var total=data.reduce(function(a,b){return a+b.v;},0)||1;
+    var ang=-Math.PI/2;
+    data.forEach(function(d){
+      var slice=d.v/total*Math.PI*2;
+      ctx.beginPath();
+      ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy,R,ang,ang+slice);
+      ctx.closePath();
+      ctx.fillStyle=d.c; ctx.fill();
+      ang+=slice;
+    });
+    // inner hole
+    ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=getCss("--panel2");ctx.fill();
+    // center label
+    ctx.fillStyle=getCss("--text");ctx.textAlign="center";
+    ctx.font="700 26px -apple-system,Segoe UI,sans-serif";
+    ctx.fillText(total.toLocaleString(),cx,cy-2);
+    ctx.fillStyle=getCss("--muted");ctx.font="600 11px -apple-system,Segoe UI,sans-serif";
+    ctx.fillText("OPEN FINDINGS",cx,cy+16);
+    // legend (clickable -> filter inventory by severity)
+    var leg=$("donutLegend");leg.innerHTML="";
+    data.forEach(function(d){
+      var pct=total?Math.round(d.v/total*100):0;
+      var el=document.createElement("span");
+      el.className="clickable";el.title="Filter inventory by "+d.k;
+      el.innerHTML='<span class="swatch" style="background:'+d.c+'"></span>'+d.k+' — '+d.v.toLocaleString()+' ('+pct+'%)';
+      el.addEventListener("click",function(){setFilter("severity",d.k,d.k+" findings");});
+      leg.appendChild(el);
+    });
+  }
+
+  /* ---------- Horizontal bar chart (Canvas) ---------- */
+  function drawBars(policies){
+    var cv=$("bars"), ctx=cv.getContext("2d");
+    var W=cv.width, H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    barGeom=[];
+    if(!policies||!policies.length){ctx.fillStyle=getCss("--muted");ctx.font="13px sans-serif";ctx.fillText("No data — connect a tenant or use demo data",10,24);return;}
+    var n=policies.length;
+    var padL=240, padR=60, padT=10, padB=10;
+    var max=policies[0].count||1;
+    var rowH=(H-padT-padB)/n;
+    var barH=Math.min(22, rowH*0.62);
+    ctx.font="12px -apple-system,Segoe UI,sans-serif";
+    policies.forEach(function(p,i){
+      var y=padT+i*rowH+rowH/2;
+      var w=(p.count/max)*(W-padL-padR);
+      // label
+      ctx.fillStyle=getCss("--text");ctx.textAlign="right";ctx.textBaseline="middle";
+      var label=p.name.length>34?p.name.slice(0,32)+"…":p.name;
+      ctx.fillText(label, padL-10, y);
+      // bar
+      ctx.fillStyle=getCss("--accent");
+      roundRect(ctx, padL, y-barH/2, Math.max(w,2), barH, 4); ctx.fill();
+      // value
+      ctx.fillStyle=getCss("--text");ctx.textAlign="left";
+      ctx.fillText(p.count.toLocaleString(), padL+Math.max(w,2)+8, y);
+      barGeom.push({y0:padT+i*rowH, y1:padT+(i+1)*rowH, name:p.name});
+    });
+  }
+  function roundRect(ctx,x,y,w,h,r){
+    r=Math.min(r,h/2,w/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  }
+  function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+  /* ---------- Cost table ---------- */
+  function buildCostTable(){
+    var tb=$("costTable").querySelector("tbody");
+    tb.innerHTML="";
+    COST_ROWS.forEach(function(row,i){
+      var tr=document.createElement("tr");
+      tr.innerHTML=
+        "<td>"+row.name+"</td>"+
+        '<td class="num">'+(row.unit<1?("$"+row.unit):money(row.unit))+' <span class="tag">'+row.unitLabel+'</span></td>'+
+        '<td class="num"><input class="qty-input" type="number" min="0" data-i="'+i+'" value="'+row.qty+'"> <span class="tag">'+row.qtyLabel+'</span></td>'+
+        '<td class="num" data-mo="'+i+'">—</td>'+
+        '<td class="num" data-yr="'+i+'">—</td>';
+      tb.appendChild(tr);
+    });
+    tb.addEventListener("input",function(e){
+      if(e.target.classList.contains("qty-input")){
+        COST_ROWS[+e.target.dataset.i].qty=Math.max(0,+e.target.value||0);
+        recalcCost();
+      }
+    });
+    recalcCost();
+  }
+  function recalcCost(){
+    var totMo=0;
+    COST_ROWS.forEach(function(row,i){
+      var mo=row.unit*row.qty;
+      totMo+=mo;
+      var moCell=document.querySelector('[data-mo="'+i+'"]');
+      var yrCell=document.querySelector('[data-yr="'+i+'"]');
+      if(moCell)moCell.textContent=money(mo);
+      if(yrCell)yrCell.textContent=money(mo*12);
+    });
+    var totYr=totMo*12;
+    $("totMonthly").textContent=money(totMo);
+    $("totYearly").textContent=money(totYr);
+    $("savingsBig").textContent=money(totYr);
+    $("savingsBig2").textContent=money(totYr);
+    $("kpiSavings").textContent=money(totYr);
+    $("monthlyInline").textContent=money(totMo);
+  }
+
+  /* ---------- Inventory + filtering ---------- */
+  function setFilter(kind, value, label, matchList){
+    state.filter = {kind:kind, value:value, label:label, match:matchList||null};
+    var chip=$("filterChip");
+    chip.classList.add("on");
+    $("filterChipText").textContent = "Filter: "+label;
+    applyFilterAndRender();
+    document.getElementById("live").scrollIntoView({behavior:"smooth",block:"start"});
+  }
+  function clearFilter(){
+    state.filter=null;
+    $("filterChip").classList.remove("on");
+    applyFilterAndRender();
+  }
+  function matchesFilter(r){
+    var f=state.filter; if(!f) return true;
+    if(f.kind==="severity") return r.severity===f.value;
+    if(f.kind==="policy")   return r.policyName===f.value;
+    if(f.kind==="waste"){
+      if(!f.match || !f.match.length || f.match[0]==="__none__") return false;
+      var hay=((r.rTypeRaw||"")+" "+(r.rType||"")+" "+(r.policyName||"")).toLowerCase();
+      return f.match.some(function(k){return hay.indexOf(k)!==-1;});
+    }
+    return true;
+  }
+  function applyFilterAndRender(){
+    var q=($("invSearch").value||"").toLowerCase().trim();
+    var rows=state.findings.filter(matchesFilter).filter(function(r){
+      if(!q) return true;
+      return ((r.rName||"")+" "+(r.region||"")+" "+(r.account||"")+" "+(r.policyName||"")+" "+(r.rType||"")).toLowerCase().indexOf(q)!==-1;
+    });
+    renderInventory(rows);
+  }
+  function renderInventory(rows){
+    var tb=$("invBody"); tb.innerHTML="";
+    $("invCount").textContent = "("+rows.length+(state.findings.length?(" of "+state.findings.length):"")+")";
+    if(!rows.length){
+      tb.innerHTML='<tr><td colspan="6" class="muted" style="padding:18px">'+
+        (state.findings.length? "No resources match the current filter/search." :
+         "No live data yet — connect a tenant or click “Use Demo Data”.")+'</td></tr>';
+      return;
+    }
+    rows.forEach(function(r){
+      var tr=document.createElement("tr");
+      tr.innerHTML=
+        "<td><strong>"+escapeHtml(r.rName)+"</strong></td>"+
+        "<td>"+escapeHtml(r.rType)+"</td>"+
+        "<td>"+escapeHtml(r.region)+"</td>"+
+        "<td>"+escapeHtml(r.account)+"</td>"+
+        '<td><span class="sev-dot sev-'+escapeHtml(r.severity)+'"></span>'+escapeHtml(r.severity)+"</td>"+
+        "<td>"+escapeHtml(r.policyName)+"</td>";
+      tr.addEventListener("click",function(){openDetail(r);});
+      tb.appendChild(tr);
+    });
+  }
+  function fmtDate(s){ if(!s) return "—"; var d=new Date(s); return isNaN(d)?s:d.toLocaleString(); }
+
+  /* ---------- Detail modal ---------- */
+  function openDetail(r){
+    $("mTitle").textContent = r.rName+" · "+r.rType;
+    var tags = (r.tags&&r.tags.length)
+      ? '<div class="tag-list">'+r.tags.map(function(t){return '<span class="tag-chip">'+escapeHtml(t.Key)+": "+escapeHtml(t.Value)+"</span>";}).join("")+"</div>"
+      : '<span class="muted">none</span>';
+    var actions =
+      (r.link? '<a class="btn" href="'+escapeHtml(r.link)+'" target="_blank" rel="noopener">Open in Tenable ↗</a>':"")+
+      (r.arn? '<button class="btn secondary" id="mCopy">Copy ARN / ID</button>':"");
+    $("mBody").innerHTML=
+      '<dl class="kv">'+
+        kv("Resource name", r.rName)+
+        kv("Type", r.rType+(r.rTypeRaw?(' <span class="tag">'+escapeHtml(r.rTypeRaw)+"</span>"):""))+
+        kv("Region", r.region)+
+        kv("Account", r.account+(r.accountId?(" ("+r.accountId+")"):""))+
+        kv("ARN / ID", r.arn?('<code>'+escapeHtml(r.arn)+"</code>"):"—")+
+        kv("Created", fmtDate(r.created))+
+        kv("Severity", '<span class="sev-dot sev-'+escapeHtml(r.severity)+'"></span>'+escapeHtml(r.severity)+" · "+escapeHtml(r.status))+
+        kv("Tags", tags)+
+      "</dl>"+
+      "<h4>Policy</h4><div><strong>"+escapeHtml(r.policyName)+'</strong> <span class="tag">'+escapeHtml(r.policyCategory)+"</span></div>"+
+      (r.policyDesc?'<p class="muted" style="font-size:.85rem;margin:.5em 0 0">'+escapeHtml(r.policyDesc)+"</p>":"")+
+      (r.steps?'<h4>Remediation steps</h4><div class="steps-pre">'+escapeHtml(r.steps)+"</div>":"")+
+      '<div class="modal-actions">'+actions+"</div>";
+    if(r.arn){
+      var cb=document.getElementById("mCopy");
+      if(cb) cb.addEventListener("click",function(){
+        navigator.clipboard && navigator.clipboard.writeText(r.arn);
+        cb.textContent="Copied ✓"; setTimeout(function(){cb.textContent="Copy ARN / ID";},1500);
+      });
+    }
+    $("modal").classList.add("on");
+  }
+  function kv(k,v){return "<dt>"+k+"</dt><dd>"+v+"</dd>";}
+  function closeModal(){ $("modal").classList.remove("on"); }
+
+  /* ---------- UI wiring ---------- */
+  function showTokenBar(show){ $("tokenBar").classList.toggle("hidden", !show); }
+
+  $("btnConnect").addEventListener("click",function(){
+    var t=$("apiToken").value.trim();
+    if(!t){ alert("Enter an API token, or click \"Use Demo Data\"."); return; }
+    state.token=t; state.proxy=$("proxyUrl").value.trim(); showTokenBar(false);
+    fetchLive();
+  });
+  $("btnDemo").addEventListener("click",function(){
+    state.mode="demo"; render(DEMO); setStatus("demo");
+    $("recordCount").textContent="Demo dataset";
+    showTokenBar(false);
+  });
+  $("btnRefresh").addEventListener("click",function(){
+    if(state.token){ fetchLive(); }
+    else { render(DEMO); setStatus("demo"); }
+  });
+  $("btnSwitch").addEventListener("click",function(){
+    state.token=""; $("apiToken").value="";
+    showTokenBar(true);
+    setStatus("demo");
+    $("apiToken").focus();
+  });
+
+  // Inventory search + filter clear
+  $("invSearch").addEventListener("input", applyFilterAndRender);
+  $("filterClear").addEventListener("click", clearFilter);
+
+  // Policy bar click -> filter by policy
+  $("bars").addEventListener("click", function(e){
+    var rect=this.getBoundingClientRect();
+    var y=(e.clientY-rect.top)*(this.height/rect.height);
+    for(var i=0;i<barGeom.length;i++){
+      if(y>=barGeom[i].y0 && y<=barGeom[i].y1){
+        setFilter("policy", barGeom[i].name, barGeom[i].name); return;
+      }
+    }
+  });
+
+  // Waste rows (Section 3) -> filter inventory by matching resource type
+  Array.prototype.forEach.call(document.querySelectorAll(".waste-row"), function(tr){
+    tr.addEventListener("click", function(){
+      var raw=(tr.getAttribute("data-match")||"").split(",").map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+      var label=tr.querySelector("td strong").textContent;
+      if(raw[0]==="__none__"){
+        setFilter("waste", label, label, ["__none__"]);
+        return;
+      }
+      setFilter("waste", label, label, raw);
+    });
+  });
+
+  // Modal close: button, overlay click, Esc
+  $("mClose").addEventListener("click", closeModal);
+  $("modal").addEventListener("click", function(e){ if(e.target===this) closeModal(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeModal(); });
+
+  /* ---------- Init ---------- */
+  $("genDate").textContent=new Date().toLocaleString();
+  buildCostTable();
+  render(DEMO);      // show something immediately
+  setStatus("demo");
+})();
+</script>
+</body>
+</html>

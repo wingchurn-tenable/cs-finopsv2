@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Node / Wrangler
+node_modules/
+.wrangler/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+
+# Secrets / local config
+.env
+.env.*
+*.token
