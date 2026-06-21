@@ -215,7 +215,7 @@
         <label for="proxyUrl">Proxy URL (optional — avoids browser CORS)</label>
         <input id="proxyUrl" type="text" autocomplete="off" spellcheck="false"
                placeholder="https://your-worker.workers.dev/   (leave blank to call Tenable directly)">
-        <span class="hint">Run the included <code>proxy_server.py</code> (Python, no installs) and paste its URL here, e.g. <code>http://localhost:8787/</code>.</span>
+        <span class="hint">Auto-filled when you launch via <code>python3 proxy_server.py</code>. Otherwise set <code>http://localhost:8787/api/graph</code>.</span>
       </div>
       <div class="field" style="flex:0 0 auto;min-width:0">
         <label>&nbsp;</label>
@@ -894,6 +894,12 @@
   document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeModal(); });
 
   /* ---------- Init ---------- */
+  // When launched via proxy_server.py the browser opens with ?proxy=/api/graph,
+  // pre-pointing live calls at the same-origin proxy (no CORS, nothing to paste).
+  try {
+    var _proxyParam = new URLSearchParams(location.search).get("proxy");
+    if(_proxyParam){ $("proxyUrl").value = _proxyParam; }
+  } catch(e){}
   $("genDate").textContent=new Date().toLocaleString();
   buildCostTable();
   render(DEMO);      // show something immediately

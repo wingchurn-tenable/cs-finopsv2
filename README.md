@@ -14,31 +14,34 @@ A single-file, portable HTML report that applies the **AWS Well-Architected Cost
 - **Switch Tenant** and **Refresh Data** buttons, last-polled timestamp, and a graceful demo dataset so the report is never blank.
 - **Theme** — Pantone 433C (`#1d252d`) background, white text, Pantone 395C (`#c5e700`) accents.
 
-## Quick start
-
-1. Open `aws-finops-waste-report.html` in any modern browser. It loads in **demo mode** immediately.
-2. Click **Switch Tenant**, paste your Tenable **API bearer token**, and **Connect & Load** for live data.
-
-The token is sent as `Authorization: Bearer <token>`. You may paste it with or without the leading `Bearer ` prefix. It lives only in the browser tab and is never stored or transmitted anywhere except to Tenable (directly or via your proxy).
-
-## Live data & CORS
-
-Browsers block direct `file://` → `app.tenable.com` calls (CORS). To use live data, run the included **Python proxy** and paste its URL into the report's **Proxy URL** field.
-
-### Python proxy (standard library only — no pip, no npm)
+## Quick start (one command — recommended)
 
 ```bash
-python3 proxy_server.py            # listens on http://localhost:8787/
-python3 proxy_server.py 9000       # optional custom port
+python3 proxy_server.py
 ```
 
-Then set the report's **Proxy URL** to `http://localhost:8787/`. Serve the HTML over http so the browser allows the localhost call:
+This serves the report **and** proxies its GraphQL calls to Tenable from the same origin, then opens your browser straight to it. No CORS, no separate static server, nothing to paste. Just enter your Tenable **bearer token** and click **Connect**.
 
 ```bash
-python3 -m http.server 8000        # then open http://localhost:8000/aws-finops-waste-report.html
+python3 proxy_server.py 9000        # custom port
+python3 proxy_server.py --no-browser  # don't auto-open the browser
 ```
 
-The proxy forwards your `Authorization: Bearer` header to Tenable and adds the CORS headers the browser requires. Nothing is stored. For production, change `ALLOW_ORIGIN` in `proxy_server.py` from `*` to your page's origin.
+The token is sent as `Authorization: Bearer <token>` (with or without a leading `Bearer `), lives only in the browser tab, and is never stored or sent anywhere except to Tenable via the local proxy.
+
+## How the launcher works
+
+| Request | Handled as |
+|---------|-----------|
+| `GET /` | the report (`aws-finops-waste-report.html`) |
+| `GET /<file>` | static files from this folder |
+| `POST /api/graph` | forwarded to `https://app.tenable.com/api/graph` with your bearer header |
+
+Because the page and the proxy share an origin, the browser makes no cross-origin request — so there is nothing for CORS to block. The launcher opens the report with `?proxy=/api/graph`, which auto-fills the report's **Proxy URL** field. For production, change `ALLOW_ORIGIN` in `proxy_server.py` from `*` to your page's origin.
+
+## Open the file directly instead
+
+You can also just open `aws-finops-waste-report.html` in a browser — it loads in **demo mode** immediately. For live data this way you must supply a proxy URL (browsers block direct `file://` → `app.tenable.com` calls), so the one-command launcher above is the simpler path.
 
 ### Optional: Cloudflare Worker (serverless)
 
